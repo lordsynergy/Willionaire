@@ -14,6 +14,8 @@ RSpec.describe Game, type: :model do
   # Пользователь для создания игр
   let(:user) { FactoryGirl.create(:user) }
 
+  let(:q) { game_w_questions.current_game_question }
+
   # Игра с прописанными игровыми вопросами
   let(:game_w_questions) do
     FactoryGirl.create(:game_with_questions, user: user)
@@ -56,7 +58,6 @@ RSpec.describe Game, type: :model do
     it 'answer correct continues game' do
       # Текущий уровень игры и статус
       level = game_w_questions.current_level
-      q = game_w_questions.current_game_question
       expect(game_w_questions.status).to eq(:in_progress)
 
       game_w_questions.answer_current_question!(q.correct_answer_key)
@@ -77,7 +78,6 @@ RSpec.describe Game, type: :model do
 
     it 'take_money! finishes the game' do
       # берем игру и отвечаем на текущий вопрос
-      q = game_w_questions.current_game_question
       game_w_questions.answer_current_question!(q.correct_answer_key)
 
       # взяли деньги
@@ -124,4 +124,62 @@ RSpec.describe Game, type: :model do
       expect(game_w_questions.status).to eq(:money)
     end
   end
+
+  context '.previous level' do
+    it 'return previous level for game' do
+      game_w_questions.current_level = 5
+
+      expect(game_w_questions.previous_level).to eq(4)
+    end
+  end
+
+  context '.current_game_question' do
+    it 'return current question for current level' do
+      level = game_w_questions.current_level
+      question = game_w_questions.game_questions[level]
+
+      expect(game_w_questions.current_game_question).to eq question
+    end
+  end
+
+  context '.answer_current_question!' do
+    it 'correct answer' do
+      expect(game_w_questions.answer_current_question!(q.correct_answer_key)).to be_truthy
+      expect(game_w_questions.status).to eq :in_progress
+      expect(game_w_questions.finished?).to be_falsey
+    end
+
+    it 'incorrect answer' do
+      expect(game_w_questions.answer_current_question!('a')).to be_falsey
+      expect(game_w_questions.status).to eq :fail
+      expect(game_w_questions.finished?).to be_truthy
+    end
+
+    it 'last answer correct (on million)' do
+      game_w_questions.current_level = Question::QUESTION_LEVELS.max
+
+      expect(game_w_questions.answer_current_question!(q.correct_answer_key)).to be_truthy
+      expect(game_w_questions.status).to eq :won
+      expect(game_w_questions.finished?).to be_truthy
+      expect(game_w_questions.prize). to eq 1000000
+    end
+
+    it 'last answer incorrect (on million)' do
+      game_w_questions.current_level = Question::QUESTION_LEVELS.max
+
+      expect(game_w_questions.answer_current_question!('a')).to be_falsey
+      expect(game_w_questions.status).to eq :fail
+      expect(game_w_questions.finished?).to be_truthy
+      expect(game_w_questions.prize). to eq 32000
+    end
+
+    it 'timeout for game' do
+      game_w_questions.created_at = 1.hour.ago
+
+      expect(game_w_questions.answer_current_question!(q.correct_answer_key)).to be_falsey
+      expect(game_w_questions.status).to eq :timeout
+      expect(game_w_questions.finished?).to be_truthy
+    end
+  end
 end
+
