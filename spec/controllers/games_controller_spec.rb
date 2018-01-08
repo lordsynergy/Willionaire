@@ -28,6 +28,36 @@ RSpec.describe GamesController, type: :controller do
       expect(response).to redirect_to(new_user_session_path) # devise должен отправить на логин
       expect(flash[:alert]).to be # во flash должен быть прописана ошибка
     end
+
+    # анон не может создать игру
+    it 'kick from #create' do
+      post :create
+
+      game = assigns(:game)
+
+      expect(game).to be_nil
+      expect(response.status).not_to eq 200
+      expect(response).to redirect_to(new_user_session_path)
+      expect(flash[:alert]).to be
+    end
+
+    # анон не может отвечать на вопросы
+    it 'kick from #answer' do
+      put :answer, id: game_w_questions.id, letter: game_w_questions.current_game_question.correct_answer_key
+
+      expect(response.status).not_to eq 200
+      expect(response).to redirect_to(new_user_session_path)
+      expect(flash[:alert]).to be
+    end
+
+    # анон не может забрать деньги
+    it 'kicked from #take_money' do
+      put :take_money, id: game_w_questions.id
+
+      expect(response.status).not_to eq(200)
+      expect(response).to redirect_to(new_user_session_path)
+      expect(flash[:alert]).to be
+    end
   end
 
   # группа тестов на экшены контроллера, доступных залогиненным юзерам
@@ -121,6 +151,18 @@ RSpec.describe GamesController, type: :controller do
 
       # и редирект на страницу старой игры
       expect(response).to redirect_to(game_path(game_w_questions))
+      expect(flash[:alert]).to be
+    end
+
+    # юзер отвечает не правильно
+    it 'incorrect answer' do
+      put :answer, id: game_w_questions.id, letter: 'a'
+
+      game = assigns(:game)
+
+      expect(game.finished?).to be_truthy
+      expect(game.status).to eq :fail
+      expect(response).to redirect_to(user_path(user))
       expect(flash[:alert]).to be
     end
   end
